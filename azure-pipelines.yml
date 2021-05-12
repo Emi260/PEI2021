@@ -1,70 +1,55 @@
-# Docker
-# Build a Docker image 
-# https://docs.microsoft.com/azure/devops/pipelines/languages/docker
-
 trigger:
-- develop
+- master
 
 resources:
 - repo: self
 
 variables:
-  tag: '$(Build.BuildId)'
+- name: dockerRegistryServiceConnection
+  value: AzureD4
+- name: azureSubscription
+  value: 'Azure service connection'
+- name: azureContainerRegistry
+  value: 'azured4.azurecr.io'
+- name: imageRepository
+  value: peiazuredevopsd4
+- name: dockerfilePath
+  value: '$(Build.SourcesDirectory)/Dockerfile'
+- name: tag
+  value: '$(Build.BuildId)'
+- name: semanticVersion
+  value: '2021.05.$(Build.BuildId)'
+- name: apiVersion
+  value: 'v1'
+- name: vmImageName
+  value: 'ubuntu-latest'
 
 stages:
 - stage: Build
-  displayName: Build image
+  displayName: Build and push stage
   jobs:  
   - job: Build
     displayName: Build
     pool:
-      vmImage: 'ubuntu-latest'
+      vmImage: $(vmImageName)
+
     steps:
+
     - task: Docker@2
-      displayName: Build and push image to container registry
+      displayName: Build and push an image to container registry
       inputs:
         command: buildAndPush
-        repository: images
-        dockerfile: '$(Build.SourcesDirectory)/web/dockerfile'
-        containerRegistry: webdockerregistry
-        tags: latest
+        repository: $(imageRepository)
+        dockerfile: $(dockerfilePath)
+        containerRegistry: $(dockerRegistryServiceConnection)
+        tags: |
+          $(tag)
+          $(semanticVersion)
+          $(apiVersion)
 
-- stage: DeployDev
-  displayName: Deploy to Development stage
-  dependsOn: Build
-  jobs:
-  - deployment: Deploy
-    displayName: Deploy    
-    pool:
-      vmImage: 'ubuntu-latest'
-    environment: 'develop-v1'
-    strategy:
-      runOnce:
-        deploy:
-          steps:
-          - task: AzureWebAppContainer@1
-            displayName: Deploy web app
-            inputs:
-              azureSubscription: 'Evaluación gratuita (f23f26a0-2935-4461-ad9f-394814164bd7)'
-              appName: 'webgaliciadev'
-              containers: 'azregistry2.azurecr.io/images:latest'
-
-- stage: DeployProd
-  displayName: Deploy to Production stage
-  dependsOn: DeployDev
-  jobs:
-  - deployment: Deploy
-    displayName: Deploy    
-    pool:
-      vmImage: 'ubuntu-latest'
-    environment: 'prod-v1'
-    strategy:
-      runOnce:
-        deploy:
-          steps:
-          - task: AzureWebAppContainer@1
-            displayName: Deploy web app
-            inputs:
-              azureSubscription: 'Evaluación gratuita (f23f26a0-2935-4461-ad9f-394814164bd7)'
-              appName: 'demogalicia'
-              containers: 'azregistry2.azurecr.io/images:latest'
+    - task: AzureWebAppContainer@1
+      displayName: Azure Web App on Container Deploy
+      inputs:
+        appName: AzureAppD4
+        azureSubscription: $(azureSubscription)
+        imageName: $(azureContainerRegistry)/$(imageRepository):$(apiVersion)
